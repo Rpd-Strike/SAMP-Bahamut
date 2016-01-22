@@ -44,7 +44,7 @@ public OnPlayerRequestClass(playerid, classid)
 
 public OnPlayerConnect(playerid)
 {
-    SetPlayerColor(playerid, 0xFFFFFFFF);
+    	SetPlayerColor(playerid, 0xFFFFFFFF);
 
 	return 1;
 }
