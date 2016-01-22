@@ -17,8 +17,10 @@
 
 ## Pawno
 
-zcmd 0.3.1
+zcmd 0.3.1      - Include
 
-ysi 3.1
+ysi 3.1         - Include
 
-sscanf 2.8.2
+sscanf 2.8.2    - Plugin + Include
+
+whirlpool 1.0   - Plugin     (at the top "native WP_Hash(buffer[], len, const str[]);")
