@@ -1,6 +1,6 @@
 # To Do List
 
-- [] Skin Camera
+- [ ] Skin Camera
 - [ ] Clock
 - [ ] Login System
 - [ ] Car System
