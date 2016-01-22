@@ -1,5 +1,6 @@
 # To Do List
 
+- [x] Clean Gamemode
 - [ ] Skin Camera
 - [ ] Clock
 - [ ] Login System
@@ -11,4 +12,4 @@
 - [ ] Factions System
 
 - [ ] Beta Launch
-- [X] To Be Contiuned
+- [x] To Be Contiuned
