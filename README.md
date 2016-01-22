@@ -7,7 +7,7 @@
 - [ ] Car System
 - [ ] House System
 - [ ] Jobs System
-- [ ] Admin + Helper System
+- [ ] Admin + Helper System (+ Standard Commands)
 - [ ] Factions System
 
 - [ ] Beta Launch
