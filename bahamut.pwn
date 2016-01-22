@@ -44,7 +44,7 @@ public OnPlayerRequestClass(playerid, classid)
 
 public OnPlayerConnect(playerid)
 {
-    	SetPlayerColor(playerid, 0xFFFFFFFF);
+	SetPlayerColor(playerid, 0xFFFFFFFF);
 
 	return 1;
 }
@@ -83,7 +83,7 @@ public OnPlayerCommandText(playerid, cmdtext[])
 {
 	if (strcmp("/mycommand", cmdtext, true, 10) == 0)
 	{
-		SendClientMessage(playerid, 0x00FF00FF, "This text is green.");
+		// Do something here
 		return 1;
 	}
 	return 0;
