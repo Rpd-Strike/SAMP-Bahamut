@@ -14,6 +14,7 @@ public OnGameModeInit()
 	UsePlayerPedAnims();
 	ShowPlayerMarkers(0);
 	LimitGlobalChatRadius(50.0);
+	EnableStuntBonusForAll(0);
 
 	AddPlayerClass(60,1781.2979,-1863.4768,13.5750,304.8684,0,0,0,0,0,0);
 
