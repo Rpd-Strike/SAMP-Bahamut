@@ -1,8 +1,8 @@
 # To Do List
 
-- [x] Clean Gamemode
-- [ ] Skin Camera
-- [ ] Clock
+- [X] Clean Gamemode
+- [X] Skin Camera
+- [X] Clock
 - [X] Login System
 - [ ] Level with RespectPoints System
 - [ ] Car System
