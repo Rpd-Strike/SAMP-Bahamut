@@ -49,7 +49,7 @@ forward settime(playerid);
 #define COLOR_LAWNGREEN 0x7CFC00AA
 #define COLOR_SEAGREEN 0x20B2AAAA
 #define COLOR_LIMEGREEN 0x32CD32AA //<--- Dark lime
-#define COLOR_MIDNIGHTBLUE 0X191970AA
+#define COLOR_MIDNIGHTBLUE 0x191970AA
 ///   DEFINES
 
 ///   DECLARES
@@ -318,6 +318,28 @@ forward MyGivePlayerMoney(toplayerid, amount);
 public MyGivePlayerMoney(toplayerid, amount) {
 	GivePlayerMoney(toplayerid, amount);
 	PlayerInfo[toplayerid][Money] += amount;
+}
+
+CMD:announce(playerid, params[]) 
+{
+    new
+        string[130],
+        pName[MAX_PLAYER_NAME];
+
+    if( PlayerInfo[playerid][AdminLevel] >= 1 || IsPlayerAdmin(playerid) ) {
+		if (isnull(params)) return SendClientMessage(playerid, COLOR_WHITE,"Usage:  /announce [text]");
+		GetPlayerName(playerid, pName, sizeof(pName));
+		format(string, sizeof(string), "[Admin] %s: ", pName);
+		SendClientMessageToAll(COLOR_RED, string);
+		format(string, sizeof(string), " %s", params);
+		SendClientMessageToAll(COLOR_LIMEGREEN, string);
+		
+	}
+	else
+	{
+		SendClientMessage(playerid, COLOR_RED, "You are not an admin");
+	}
+    return 1;
 }
 
 CMD:givemoney(playerid, params[])
