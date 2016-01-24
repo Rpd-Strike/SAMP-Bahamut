@@ -123,6 +123,27 @@ new PlayerInfo[MAX_PLAYERS][E_PLAYER_DATA];
 //   ||====================||=====================||======================||===========================||
 ///   STOCKS
 ///  STRTOK + STRREST HERE
+stock GetPlayerIdFromName(playername[])
+{
+  for(new i = 0; i <= MAX_PLAYERS; i++)
+  {
+    if(IsPlayerConnected(i))
+    {
+      new playername2[MAX_PLAYER_NAME];
+      GetPlayerName(i, playername2, sizeof(playername2));
+	  new lungime = (strlen(playername) == strlen(playername2));
+	  if(lungime)
+	  {
+		if(strcmp(playername2, playername, true) == 0)
+		{
+			return i;
+		}
+	  }
+    }
+  }
+  return INVALID_PLAYER_ID;
+}
+
 stock strrest(const string[], &index)
 {
 	new length = strlen(string);
@@ -175,7 +196,7 @@ public settime(playerid)
 //  World Clock
 //   ==============================================================
 //   LOGIN
-NameUserPath(playerid) {
+stock NameUserPath(playerid) {
     new 
 	str[36]; // 'str' will be our variable used to format a string, the size of that string will never exceed 36 characters. 
 
@@ -599,24 +620,24 @@ CMD:kickall(playerid)
 CMD:unbanuser( playerid, params[] )
 {
 	if( !IsPlayerAdmin( playerid ) && PlayerInfo[playerid][AdminLevel] <= 4 ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: You aren't authorized to use this command!" );
-	
-	new targetid;
-	
-	if( sscanf( params, "s", targetid ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /unbanuser [playerid]" );
-	
+
+    new targetname[24], filestring[79];
+
+	if( sscanf( params, "s[24]", targetname ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /unbanuser [playername]" );
+    format(filestring, sizeof(filestring), "/Users/%s.ini", targetname);
 	///   Verifica targetid
-	if(fexist(NameUserPath(targetid)))
+	if( fexist(filestring) )
 	{
-		new INI:file = INI_Open(UserPath(targetid));
-		INI_SetTag(file, "PlayerData"); 
+		new INI:file = INI_Open(filestring);
+		INI_SetTag(file, "PlayerData");
 		INI_WriteInt(file, "UserBan", 0);
 		INI_Close(file);
-		
+
 		new mess[400];
-		format( mess, sizeof(mess), ""#COL_GREEN"The user "#COL_WHITE"%s "#COL_GREEN"has been unbanned", GetPlayersName( targetid ) );
+		format( mess, sizeof(mess), ""#COL_GREEN"The user "#COL_WHITE"%s "#COL_GREEN"has been unbanned", targetname );
 		return SendClientMessage( playerid, COLOR_WHITE, mess );
 	}
-	
+
 	return SendClientMessage( playerid, COLOR_YELLOW, "The user does not exists" );
 }
 
@@ -624,29 +645,30 @@ CMD:banuser( playerid, params[] )
 {
 	if( !IsPlayerAdmin( playerid ) && PlayerInfo[playerid][AdminLevel] <= 4 ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: You aren't authorized to use this command!" );
 	
-	new targetid, reason[ 200 ];
+	new targetname[24], filestring[79];
 	
-	if( sscanf( params, "us[64]", targetid, reason ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /banuser [playerid] [reason]" );
+	if(sscanf(params, "s[24]", targetname)) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /banuser [playername]" );
 	
-	if( targetid == INVALID_PLAYER_ID || playerid == targetid ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: Invalid playerid." );
+	format(filestring, sizeof(filestring), "/Users/%s.ini", targetname);
+	if(!fexist(filestring)) return SendClientMessage(playerid, -1, "Error: The player name you have chosen was not found in our system.");
 	
-	new str[ 400 ];
-	
-	// formatting the message, and sending it to everyone online. for more information on this function please visit the SA-MP wiki.
-	format( str, sizeof( str ), ""#COL_INDIGO"%s "#COL_RED"has BANNED YOU "#COL_YELLOW"for "#COL_RED"%s.", GetPlayersName( playerid ), reason );
-	SendClientMessage( targetid, -1, str );
-	
-	format( str, sizeof( str ), ""#COL_GREEN"YOU have banned "#COL_BLUE"%s "#COL_GREEN"for %s" );
-	SendClientMessage( playerid, -1, str );
-	
-	new INI:file = INI_Open(UserPath(targetid));
+	new INI:file = INI_Open(filestring);
 	INI_SetTag(file, "PlayerData"); 
 	INI_WriteInt(file, "UserBan", 1);
 	INI_Close(file);
 	
-	PlayerInfo[targetid][UserBan] = 1;
+	new str[400];
+	format( str, sizeof(str), ""#COL_GREEN"You have banned "#COL_YELLOW"%s "#COL_GREEN"succesfully.", targetname );
+	SendClientMessage( playerid, -1, str );
 	
-	Kick(targetid);
+	if(GetPlayerIdFromName(targetname) != INVALID_PLAYER_ID) {
+		new playername[MAX_PLAYER_NAME + 2];
+		GetPlayerName(playerid, playername, sizeof(playername) );
+		format( str, sizeof(str), ""#COL_RED"You have been banned by "#COL_YELLOW"%s "#COL_RED"Congrats!!", playername );
+		SendClientMessage( playerid, -1, str );
+		
+		Kick(GetPlayerIdFromName(targetname));
+	}
 	return 1;
 }
 
@@ -871,6 +893,7 @@ public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
                 INI_WriteInt(file, "Kills", 0); 
                 INI_WriteInt(file, "Deaths", 0); 
                 INI_WriteInt(file, "RespectP", 0); 
+                INI_WriteInt(file, "UserBan", 0); 
                 INI_Close(file); 
                 SendClientMessage(playerid, -1, "You have successfully registered."); 
                 PlayerInfo[playerid][LoggedIn] = true; 
