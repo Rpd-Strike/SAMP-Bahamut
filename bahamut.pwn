@@ -78,6 +78,10 @@ forward settime(playerid);
 #define COL_LGREEN         "{C9FFAB}"
 #define COL_LRED           "{FFA1A1}"
 #define COL_LRED2          "{C77D87}"
+//  =============================================================
+//  BAN STUFF
+native BlockIpAddress(ip_address[], timems); // blocks an IP address from further communication (wildcards allowed)
+native UnBlockIpAddress(ip_address[]); // IP unblock
 ///   DEFINES
 
 ///   DECLARES
@@ -110,6 +114,7 @@ enum E_PLAYER_DATA {
     Kills, 
     Deaths,
 	Skin,
+	UserBan,
     bool:LoggedIn 
 }; 
 new PlayerInfo[MAX_PLAYERS][E_PLAYER_DATA];  
@@ -117,6 +122,38 @@ new PlayerInfo[MAX_PLAYERS][E_PLAYER_DATA];
 ///   ENUMS
 //   ||====================||=====================||======================||===========================||
 ///   STOCKS
+///  STRTOK + STRREST HERE
+stock strrest(const string[], &index)
+{
+	new length = strlen(string);
+	while ((index < length) && (string[index] <= ' '))
+	{
+		index++;
+	}
+	new offset = index;
+	new result[128];
+	while ((index < length) && ((index - offset) < (sizeof(result) - 1)))
+	{
+		result[index - offset] = string[index];
+		index++;
+	}
+	result[index - offset] = EOS;
+	return result;
+}
+
+stock strtok(const string[], &index) 
+{ 
+	new length = strlen(string); 
+	while ((index < length) && (string[index] <= ' ')) index++; 
+	new offset = index, result[20]; 
+	while ((index < length) && (string[index] > ' ') && ((index - offset) < (sizeof(result) - 1))) 
+	{ 
+		result[index - offset] = string[index]; 
+		index++; 
+	} 
+	result[index - offset] = EOS; 
+	return result; 
+}
 //   ==============================================================
 //  World Clock
 public settime(playerid)
@@ -138,6 +175,15 @@ public settime(playerid)
 //  World Clock
 //   ==============================================================
 //   LOGIN
+NameUserPath(playerid) {
+    new 
+	str[36]; // 'str' will be our variable used to format a string, the size of that string will never exceed 36 characters. 
+
+    // Format USER_PATH with the name that we got with GetPlayerName. 
+    format(str, sizeof(str), USER_PATH, playerid); // USER_PATH has been defined as: "/Users/%s.ini", %s will be replaced the player's name. 
+    return str;
+}
+
 UserPath(playerid) { 
 
     // Declare our variables used in this function 
@@ -165,6 +211,7 @@ public LoadPlayerData_user(playerid, name[], value[]) {
     INI_Int("Deaths", PlayerInfo[playerid][Deaths]); 
     INI_Int("Skin", PlayerInfo[playerid][Skin]); 
     INI_Int("RespectP", PlayerInfo[playerid][RespectP]); 
+    INI_Int("UserBan", PlayerInfo[playerid][UserBan]); 
 	
     return 1; 
 }
@@ -178,6 +225,24 @@ stock Automatic_PayDay()
 		PlayerInfo[player][RespectP] += 1;  //  Adaugam Respect Points
 		SendClientMessage( player, COLOR_GREEN, "Ai primit 1 RespectPoint" );
 	}
+}
+//   GESTIONARE BANS / USERS
+stock GetPlayersName( playerid )
+{
+	// creating a variable to store the player's name in.
+	new name[ MAX_PLAYER_NAME ];
+	// getting the player's name and storing it into the variable
+	GetPlayerName( playerid, name, sizeof( name ) );
+	return name; // returning the player's name.
+}
+
+stock ReturnPlayerIp( playerid )
+{
+	// creating a variable to store the player's IP address in.
+	new Ip[ 20 ];
+	// getting the IP address of the player and storing it into the variable.
+	GetPlayerIp( playerid, Ip, sizeof( Ip ) );
+	return Ip; // returning the IP address.
 }
 
 ///   STOCKS
@@ -277,6 +342,7 @@ public OnPlayerConnect(playerid)
     PlayerInfo[playerid][Scores] = 0; 
     PlayerInfo[playerid][Kills] = 0; 
     PlayerInfo[playerid][Deaths] = 0; 
+	PlayerInfo[playerid][UserBan] = 0;
     PlayerInfo[playerid][LoggedIn] = false; 
 
     new 
@@ -288,6 +354,13 @@ public OnPlayerConnect(playerid)
         // This will check whether the user's file exists (he is registered). 
         // When it exists, run the following code: 
         INI_ParseFile(UserPath(playerid), "LoadPlayerData_user", .bExtra = true, .extra = playerid);
+		
+		if( PlayerInfo[playerid][UserBan] ) {
+			SendClientMessage( playerid, -1, "Esti banat de pe server, ne pare rau, vei fi deconectat" );
+			
+			Kick( playerid );
+		}
+		
         ShowPlayerDialog(playerid, DIALOG_LOGIN, DIALOG_STYLE_PASSWORD, "Login", "Welcome back. This account is registered.\n\nEnter your password below to log in:", "Login", "Quit"); 
     } 
     else { 
@@ -314,6 +387,7 @@ public OnPlayerDisconnect(playerid, reason)
     INI_WriteInt(file, "Scores", PlayerInfo[playerid][Scores]);
     INI_WriteInt(file, "AdminLevel", PlayerInfo[playerid][AdminLevel]);
     INI_WriteInt(file, "HelperLevel", PlayerInfo[playerid][HelperLevel]);
+    INI_WriteInt(file, "UserBan", PlayerInfo[playerid][UserBan]);
 	
 	
     INI_Close(file);
@@ -482,7 +556,7 @@ CMD:givemoney(playerid, params[])
 			if (toplayerid != INVALID_PLAYER_ID)
 			{
 		    new
-				message[40];
+				message[200];
 			MyGivePlayerMoney(toplayerid, amount);
 			//  Mesaj la TOPLAYERID
 			format(message, sizeof(message), "You got $%d from admin!", amount);
@@ -521,13 +595,134 @@ CMD:kickall(playerid)
 	return 1;
 }
 
-public OnPlayerCommandText(playerid, cmdtext[])
+///  BAN FUNCTION
+CMD:unbanuser( playerid, params[] )
 {
+	if( !IsPlayerAdmin( playerid ) && PlayerInfo[playerid][AdminLevel] <= 4 ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: You aren't authorized to use this command!" );
+	
+	new targetid;
+	
+	if( sscanf( params, "s", targetid ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /unbanuser [playerid]" );
+	
+	///   Verifica targetid
+	if(fexist(NameUserPath(targetid)))
+	{
+		new INI:file = INI_Open(UserPath(targetid));
+		INI_SetTag(file, "PlayerData"); 
+		INI_WriteInt(file, "UserBan", 0);
+		INI_Close(file);
+		
+		new mess[400];
+		format( mess, sizeof(mess), ""#COL_GREEN"The user "#COL_WHITE"%s "#COL_GREEN"has been unbanned", GetPlayersName( targetid ) );
+		return SendClientMessage( playerid, COLOR_WHITE, mess );
+	}
+	
+	return SendClientMessage( playerid, COLOR_YELLOW, "The user does not exists" );
+}
+
+CMD:banuser( playerid, params[] )
+{
+	if( !IsPlayerAdmin( playerid ) && PlayerInfo[playerid][AdminLevel] <= 4 ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: You aren't authorized to use this command!" );
+	
+	new targetid, reason[ 200 ];
+	
+	if( sscanf( params, "us[64]", targetid, reason ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /banuser [playerid] [reason]" );
+	
+	if( targetid == INVALID_PLAYER_ID || playerid == targetid ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: Invalid playerid." );
+	
+	new str[ 400 ];
+	
+	// formatting the message, and sending it to everyone online. for more information on this function please visit the SA-MP wiki.
+	format( str, sizeof( str ), ""#COL_INDIGO"%s "#COL_RED"has BANNED YOU "#COL_YELLOW"for "#COL_RED"%s.", GetPlayersName( playerid ), reason );
+	SendClientMessage( targetid, -1, str );
+	
+	format( str, sizeof( str ), ""#COL_GREEN"YOU have banned "#COL_BLUE"%s "#COL_GREEN"for %s" );
+	SendClientMessage( playerid, -1, str );
+	
+	new INI:file = INI_Open(UserPath(targetid));
+	INI_SetTag(file, "PlayerData"); 
+	INI_WriteInt(file, "UserBan", 1);
+	INI_Close(file);
+	
+	PlayerInfo[targetid][UserBan] = 1;
+	
+	Kick(targetid);
+	return 1;
+}
+
+CMD:banip( playerid, params[ ] )
+{
+	if( !IsPlayerAdmin( playerid ) && PlayerInfo[playerid][AdminLevel] <= 4 ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: You aren't authorized to use this command!" );
+	
+	new targetid, reason[ 200 ];
+	
+	if( sscanf( params, "us[64]", targetid, reason ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /banip [playerid] [reason]" );
+	
+	if( targetid == INVALID_PLAYER_ID || playerid == targetid ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: Invalid playerid." );
+	
+	// creating a string to store the message in.
+	new str[ 400 ];
+	
+	// formatting the message, and sending it to everyone online. for more information on this function please visit the SA-MP wiki.
+	format( str, sizeof( str ), ""#COL_INDIGO"%s "#COL_RED"has BANNED YOU "#COL_YELLOW"for "#COL_RED"%s.", GetPlayersName( playerid ), reason );
+	SendClientMessage( targetid, -1, str );
+	
+	format( str, sizeof( str ), ""#COL_GREEN"YOU have banned "#COL_BLUE"%s "#COL_GREEN"for %s" );
+	
+	BlockIpAddress( ReturnPlayerIp( targetid ), 0 );
+	return 1;
+}
+
+CMD:unbanip( playerid, params[ ] )
+{
+    if( !IsPlayerAdmin( playerid ) && PlayerInfo[playerid][AdminLevel] <= 4 ) return SendClientMessage( playerid, COLOR_YELLOW, "Error: You aren't authorized to use this command!" );
+    
+    // Defining a variable for our parameter.
+    new ip_address[ 20 ];
+    
+    if( sscanf( params, "s[16]", ip_address ) ) return SendClientMessage( playerid, COLOR_YELLOW, "Usage: /unbanip [ip-address]" );
+
+    // creating a string to store the message in.
+    new str[ 200 ];
+    
+    format( str, sizeof( str ), ""#COL_GREEN"You've unbanned IP: "#COL_RED"%s", ip_address );
+    SendClientMessage(playerid, -1, str );
+	
+	UnBlockIpAddress( ip_address );
+    return 1;
+}
+
+CMD:pm( playerid, params[] )
+{
+	new mes[450], raw_mes[400], id, send_name[MAX_PLAYER_NAME], rec_name[MAX_PLAYER_NAME];
+	if(sscanf(params, "us", id, raw_mes))
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Usage: /pm <id/name> <message>");
+	}
+	if( !IsPlayerConnected(id) ) 
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "That player is not connected right now.");
+	}
+	if( playerid == id ) {
+		return SendClientMessage(playerid, COLOR_YELLOW, "You can not PM yourself.");
+	}
+	GetPlayerName(playerid, send_name, sizeof(send_name)); //The Sender's Name so we use (playerid).
+	GetPlayerName(id, rec_name, sizeof(rec_name)); //The Receiver's Name so we use (id).
+	format(mes, sizeof(mes), ""#COL_GREEN"PM To "#COL_IVORY"%s(%d): "#COL_GREEN"%s", rec_name, id, raw_mes);
+	SendClientMessage(playerid, COLOR_INDIGO, mes);
+	format(mes, sizeof(mes), ""#COL_GREEN"PM From "#COL_IVORY"%s(%d): "#COL_GREEN"%s", send_name, playerid, raw_mes);
+	SendClientMessage(id, COLOR_INDIGO, mes);
+	return 1;
+}
+
+public OnPlayerCommandText(playerid, cmdtext[])
+{	
 	return 1;
 }
 
 public OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
 {
+	
 	return 1;
 }
 
