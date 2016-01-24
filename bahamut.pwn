@@ -666,7 +666,7 @@ CMD:banuser( playerid, params[] )
 		GetPlayerName(playerid, playername, sizeof(playername) );
 		format( str, sizeof(str), ""#COL_RED"You have been banned by "#COL_YELLOW"%s "#COL_RED"Congrats!!", playername );
 		SendClientMessage( playerid, -1, str );
-		
+		PlayerInfo[GetPlayerIdFromName(targetname)][UserBan] = 1;
 		Kick(GetPlayerIdFromName(targetname));
 	}
 	return 1;
