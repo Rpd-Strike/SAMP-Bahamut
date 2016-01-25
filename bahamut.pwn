@@ -16,12 +16,13 @@
 #define USER_PATH "/Users/%s.ini" 
 //   LOGIN
 //==================================================
+//   PayDay
 //   World Clock
 new Text:Time, Text:Date;
 forward settime(playerid);
 //   World clock
 //==================================================
-#define PAYDAY_MINUTE 8  //  Cand se reseteaza payday
+#define PAYDAY_MINUTE 04  //  Cand se reseteaza payday
 //   CoLoRS
 #define COLOR_GREY 0xAFAFAFAA
 #define COLOR_GREEN 0x33AA33AA
@@ -51,6 +52,7 @@ forward settime(playerid);
 #define COLOR_SEAGREEN 0x20B2AAAA
 #define COLOR_LIMEGREEN 0x32CD32AA //<--- Dark lime
 #define COLOR_MIDNIGHTBLUE 0x191970AA
+#define COLOR_LIGHTPINK 0xDB348CAA
 //  FARA X PENTRU FORMAT
 #define COL_EASY           "{FFF1AF}"
 #define COL_WHITE          "{FFFFFF}"
@@ -242,11 +244,13 @@ public LoadPlayerData_user(playerid, name[], value[]) {
 stock Automatic_PayDay()
 {
 	for( new player = 0;  player < MAX_PLAYERS;  ++player ) {
-		SendClientMessage( player, COLOR_BLUE, "PAYDAY TIME !!" );
+		
+		//   Update stats
 		PlayerInfo[player][RespectP] += 1;  //  Adaugam Respect Points
 		SendClientMessage( player, COLOR_GREEN, "Ai primit 1 RespectPoint" );
 	}
 }
+
 //   GESTIONARE BANS / USERS
 stock GetPlayersName( playerid )
 {
@@ -290,6 +294,7 @@ public OnGameModeInit()
 	EnableStuntBonusForAll(0);
 	
 	//  ================================================================================
+	//  PayDay
 	//  World Clock
 	SetTimer("settime",1000,true);
 
@@ -479,9 +484,13 @@ CMD:stats(playerid, params[])
 	new cMoney = PlayerInfo[playerid][Money];
 	new cKills = PlayerInfo[playerid][Kills];
 	new cDeaths = PlayerInfo[playerid][Deaths];
+	new cNameBanned = PlayerInfo[playerid][UserBan];
+	new strNameBan[20];
+	format( strNameBan, sizeof(strNameBan), ""#COL_GREEN"No" );
+	if( cNameBanned )  format( strNameBan, sizeof(strNameBan), ""#COL_RED"Yes" );
 	new cAdmin = PlayerInfo[playerid][AdminLevel];
 	new cHelper = PlayerInfo[playerid][HelperLevel];
-	format( str_stats, 1000, " "#COL_WHITE"Name: "#COL_BLUE"%s \n "#COL_WHITE"Level: "#COL_GREEN"%d \n "#COL_WHITE"Respect Points: "#COL_GREEN"%d \n "#COL_WHITE"Money: "#COL_GREEN"%d \n "#COL_WHITE"Kills: "#COL_GREEN"%d \n "#COL_WHITE"Deaths: "#COL_GREEN"%d \n "#COL_WHITE"Admin_Level: "#COL_YELLOW"%d \n "#COL_WHITE"Helper_Level: "#COL_YELLOW"%d", playername, cLevel, cRespectP, cMoney, cKills, cDeaths, cAdmin, cHelper );
+	format( str_stats, 1000, " "#COL_WHITE"Name: "#COL_BLUE"%s \n "#COL_WHITE"Level: "#COL_GREEN"%d \n "#COL_WHITE"Respect Points: "#COL_GREEN"%d \n "#COL_WHITE"Money: "#COL_GREEN"%d \n "#COL_WHITE"Kills: "#COL_GREEN"%d \n "#COL_WHITE"Deaths: "#COL_GREEN"%d \n "#COL_WHITE"Name banned: "#COL_YELLOW"%s \n "#COL_WHITE"Admin_Level: "#COL_YELLOW"%d \n "#COL_WHITE"Helper_Level: "#COL_YELLOW"%d", playername, cLevel, cRespectP, cMoney, cKills, cDeaths, strNameBan, cAdmin, cHelper );
 	
 	ShowPlayerDialog(playerid, DIALOG_STATS, DIALOG_STYLE_MSGBOX, title_mess, str_stats, "OK / Close", "" );
 	
@@ -505,17 +514,14 @@ public  MySetPlayerMoney(toplayerid, amount)
 CMD:announce(playerid, params[]) 
 {
     new
-        string[130],
+        string[400],
         pName[MAX_PLAYER_NAME];
 
-    if( PlayerInfo[playerid][AdminLevel] >= 1 || IsPlayerAdmin(playerid) ) {
+    if( PlayerInfo[playerid][AdminLevel] >= 1 || IsPlayerAdmin(playerid) || PlayerInfo[playerid][HelperLevel] >= 1 ) {
 		if (isnull(params)) return SendClientMessage(playerid, COLOR_WHITE,"Usage:  /announce [text]");
 		GetPlayerName(playerid, pName, sizeof(pName));
-		format(string, sizeof(string), "[Admin] %s: ", pName);
-		SendClientMessageToAll(COLOR_RED, string);
-		format(string, sizeof(string), " %s", params);
-		SendClientMessageToAll(COLOR_LIMEGREEN, string);
-		
+		format(string, sizeof(string), ""#COL_RED"[Admin] %s:  "#COL_GREEN"%s", pName, params);
+		SendClientMessageToAll(COLOR_LIGHTPINK, string);		
 	}
 	else
 	{
@@ -532,7 +538,7 @@ CMD:setmoney(playerid, params[])
 			toplayerid, // the player we want to SET money to
 			amount;
 		// extracting player's ID and amount from params
-		if (!sscanf(params, "ii", toplayerid, amount))
+		if (!sscanf(params, "ui", toplayerid, amount))
 		{
 			if (toplayerid != INVALID_PLAYER_ID)
 			{
@@ -540,7 +546,7 @@ CMD:setmoney(playerid, params[])
 				message[1000];
 			MySetPlayerMoney(toplayerid, amount);
 			//  Mesaj la TOPLAYERID
-			new aname[MAX_PLAYER_NAME], astr[200], str_amount[200];
+			new aname[MAX_PLAYER_NAME], astr[400], str_amount[400];
 			GetPlayerName(playerid, aname, sizeof(aname));
 			format(astr, sizeof(astr), "%s", aname);
 			format(str_amount, sizeof(str_amount), "%s", amount);
@@ -548,7 +554,7 @@ CMD:setmoney(playerid, params[])
 			
 			SendClientMessage(toplayerid, COLOR_RED, message);
 			//  Mesaj la ADMIN
-			new pname[MAX_PLAYER_NAME], str[200];
+			new pname[MAX_PLAYER_NAME], str[400];
 			GetPlayerName(toplayerid, pname, sizeof(pname));
 			format(str, sizeof(str), "%s", pname);
 			format(message, sizeof(message), "You set $%d to %s", amount, str); 
@@ -557,7 +563,7 @@ CMD:setmoney(playerid, params[])
 			}
 			else SendClientMessage(playerid, COLOR_FLBLUE, "That player is not connected");
 		}
-		else SendClientMessage(playerid, COLOR_YELLOW, "Usage: /setmoney <playerid> <amount>");
+		else SendClientMessage(playerid, COLOR_YELLOW, "Usage: /setmoney <playerid/name> <amount>");
 	}
 	else SendClientMessage(playerid, COLOR_YELLOW, "Only admins can use this command!");
 	return 1;
@@ -572,7 +578,7 @@ CMD:givemoney(playerid, params[])
 			toplayerid, // the player we want to give money to
 			amount;
 		// extracting player's ID and amount from params
-		if (!sscanf(params, "ii", toplayerid, amount))
+		if (!sscanf(params, "ui", toplayerid, amount))
 		{
 			if (toplayerid != INVALID_PLAYER_ID)
 			{
@@ -592,7 +598,7 @@ CMD:givemoney(playerid, params[])
 			}
 			else SendClientMessage(playerid, COLOR_FLBLUE, "That player is not connected");
 		}
-		else SendClientMessage(playerid, COLOR_YELLOW, "Usage: /givemoney <playerid> <amount>");
+		else SendClientMessage(playerid, COLOR_YELLOW, "Usage: /givemoney <playerid/name> <amount>");
 	}
 	else SendClientMessage(playerid, COLOR_YELLOW, "Only admins can use this command!");
 	return 1;
@@ -634,11 +640,11 @@ CMD:unbanuser( playerid, params[] )
 		INI_Close(file);
 
 		new mess[400];
-		format( mess, sizeof(mess), ""#COL_GREEN"The user "#COL_WHITE"%s "#COL_GREEN"has been unbanned", targetname );
+		format( mess, sizeof(mess), ""#COL_GREEN"The user "#COL_WHITE"%s "#COL_GREEN"has been unbanned.", targetname );
 		return SendClientMessage( playerid, COLOR_WHITE, mess );
 	}
 
-	return SendClientMessage( playerid, COLOR_YELLOW, "The user does not exists" );
+	return SendClientMessage( playerid, COLOR_YELLOW, "The user does not exists on our system." );
 }
 
 CMD:banuser( playerid, params[] )
@@ -737,6 +743,64 @@ CMD:pm( playerid, params[] )
 	return 1;
 }
 
+///  Godlike functions
+CMD:getheal( playerid, params[] ) {
+	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][AdminLevel] <= 0 )
+	{
+		return SendClientMessage( playerid, COLOR_YELLOW, "You are not authorized to use this command" );
+	}
+	SetPlayerHealth(playerid, 100.0);
+	SendClientMessage( playerid, COLOR_GREEN, "Your health is now full!" );
+	return 1;
+}
+
+CMD:getarmour( playerid, params[] ) {
+	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][AdminLevel] <= 0 )
+	{
+		return SendClientMessage( playerid, COLOR_YELLOW, "You are not authorized to use this command" );
+	}
+	SetPlayerArmour(playerid, 100.0);
+	SendClientMessage( playerid, COLOR_GREEN, "Your armour is now full!" );
+	return 1;
+}
+
+CMD:duty( playerid, params[] ) {
+	if( !IsPlayerAdmin(playerid) && !PlayerInfo[playerid][AdminLevel] && !PlayerInfo[playerid][HelperLevel] ) 
+	{
+		return SendClientMessage( playerid, COLOR_YELLOW, "You are not authorized to use this command." );
+	}
+	
+	new str[400], status[100], name[100];
+	GetPlayerName(playerid, name, sizeof(name));
+	format( status, sizeof(status), "Helper-ul" );
+	if( PlayerInfo[playerid][AdminLevel] )  format( status, sizeof(status), "Admin-ul" );
+	if( IsPlayerAdmin(playerid) )  format( status, sizeof(status), "Fondatorul" );
+	
+	if( GetPlayerColor(playerid) == COLOR_LIGHTPINK ) {
+		SetPlayerColor( playerid, COLOR_WHITE );
+		
+		
+		format( str, sizeof(str), ""#COL_RED"%s %s "#COL_GREEN"este acum OFF DUTY.", status, name );
+		return SendClientMessageToAll( COLOR_WHITE, str );
+	}
+	else {
+		SetPlayerColor(playerid, COLOR_LIGHTPINK);
+		
+		format( str, sizeof(str), ""#COL_RED"%s %s "#COL_GREEN"este acum ON DUTY.", status, name );
+		return SendClientMessageToAll( COLOR_WHITE, str );
+	}
+	
+}
+  /*
+CMD:tp( playerid, params[] ) {
+	if( !IsPlayerAdmin(playerid) && !PlayerInfo[playerid][AdminLevel] && !PlayerInfo[playerid][HelperLevel] )
+	{
+		return SendClientMessage( playerid, COLOR_YELLOW, "You are not authorized to use this command." );
+	}
+	if
+	
+	*/
+	
 public OnPlayerCommandText(playerid, cmdtext[])
 {	
 	return 1;
