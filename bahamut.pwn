@@ -9,11 +9,13 @@
 #include <YSi\y_ini>
 #include <zcmd>
 #include <sscanf2>
+#include <foreach>
 ///   INCLUDES
 //==================================================
 ///   DEFINES
 //   LOGIN
 #define USER_PATH "/Users/%s.ini" 
+#define VEHICLE_PATH "/Vehicles/%d.ini"
 //   LOGIN
 //==================================================
 //   PayDay
@@ -123,11 +125,72 @@ enum E_PLAYER_DATA {
 	UserBan,
     bool:LoggedIn 
 }; 
+///  Vehicle system
+enum E_VEHICLE_DATA {
+	Name[40],  //  Numele masini in game  (Infernus, landstalker)
+	Plate[30], //  Numele plate-ului masinii (Ceva personalizat  /player/masina)
+	ModelID,   //  ID-ul masini de folosit (cel link-uit cu numele)
+	Owner[MAX_PLAYER_NAME],     //  Numele celui care detine masina (cel de login)
+	Color1,  Color2,            //  Culorile
+	Float: ParkX, 
+	Float: ParkY,
+	Float: ParkZ,
+	Float: ParkA, //  Coordonatele de respawn / park
+	Buyable,  //  Masina e de vanzare?
+	Locked,   //  Daca alti playeri pot sa intre in masina in afara de owner
+	Valid     //  Daca masina e valida de LOAD
+}
+
+new VehicleInfo[MAX_VEHICLES][E_VEHICLE_DATA];
 new PlayerInfo[MAX_PLAYERS][E_PLAYER_DATA];  
 //   PLAYER_INFO
 ///   ENUMS
 //   ||====================||=====================||======================||===========================||
 ///   STOCKS
+
+//  Bullshit names
+new VehicleNames[][] =
+{
+    "Landstalker", "Bravura", "Buffalo", "Linerunner", "Perrenial", "Sentinel",
+	"Dumper", "Firetruck", "Trashmaster", "Stretch", "Manana", "Infernus",
+	"Voodoo", "Pony", "Mule", "Cheetah", "Ambulance", "Leviathan", "Moonbeam",
+    "Esperanto", "Taxi", "Washington", "Bobcat", "Whoopee", "BF Injection",
+	"Hunter", "Premier", "Enforcer", "Securicar", "Banshee", "Predator", "Bus",
+	"Rhino", "Barracks", "Hotknife", "Trailer", "Previon", "Coach", "Cabbie",
+	"Stallion", "Rumpo", "RC Bandit", "Romero", "Packer", "Monster", "Admiral",
+	"Squalo", "Seasparrow", "Pizzaboy", "Tram", "Trailer", "Turismo", "Speeder",
+	"Reefer", "Tropic", "Flatbed", "Yankee", "Caddy", "Solair", "Berkley's RC Van",
+	"Skimmer", "PCJ-600", "Faggio", "Freeway", "RC Baron", "RC Raider", "Glendale",
+	"Oceanic","Sanchez", "Sparrow", "Patriot", "Quad", "Coastguard", "Dinghy",
+	"Hermes", "Sabre", "Rustler", "ZR-350", "Walton", "Regina", "Comet", "BMX",
+	"Burrito", "Camper", "Marquis", "Baggage", "Dozer", "Maverick", "News Chopper",
+	"Rancher", "FBI Rancher", "Virgo", "Greenwood", "Jetmax", "Hotring", "Sandking",
+	"Blista Compact", "Police Maverick", "Boxville", "Benson", "Mesa", "RC Goblin",
+	"Hotring Racer A", "Hotring Racer B", "Bloodring Banger", "Rancher", "Super GT",
+	"Elegant", "Journey", "Bike", "Mountain Bike", "Beagle", "Cropduster", "Stunt",
+ 	"Tanker", "Roadtrain", "Nebula", "Majestic", "Buccaneer", "Shamal", "Hydra",
+ 	"FCR-900", "NRG-500", "HPV1000", "Cement Truck", "Tow Truck", "Fortune",
+ 	"Cadrona", "FBI Truck", "Willard", "Forklift", "Tractor", "Combine", "Feltzer",
+ 	"Remington", "Slamvan", "Blade", "Freight", "Streak", "Vortex", "Vincent",
+    "Bullet", "Clover", "Sadler", "Firetruck", "Hustler", "Intruder", "Primo",
+	"Cargobob", "Tampa", "Sunrise", "Merit", "Utility", "Nevada", "Yosemite",
+	"Windsor", "Monster", "Monster", "Uranus", "Jester", "Sultan", "Stratium",
+	"Elegy", "Raindance", "RC Tiger", "Flash", "Tahoma", "Savanna", "Bandito",
+    "Freight Flat", "Streak Carriage", "Kart", "Mower", "Dune", "Sweeper",
+	"Broadway", "Tornado", "AT-400", "DFT-30", "Huntley", "Stafford", "BF-400",
+	"News Van", "Tug", "Trailer", "Emperor", "Wayfarer", "Euros", "Hotdog", "Club",
+	"Freight Box", "Trailer", "Andromada", "Dodo", "RC Cam", "Launch", "Police Car",
+ 	"Police Car", "Police Car", "Police Ranger", "Picador", "S.W.A.T", "Alpha",
+ 	"Phoenix", "Glendale", "Sadler", "Luggage", "Luggage", "Stairs", "Boxville",
+ 	"Tiller", "Utility Trailer"
+};
+stock GetVehicleName(vehicleid)
+{
+	new String[20];
+	format(String,sizeof(String),"%s",VehicleNames[GetVehicleModel(vehicleid) - 400]);
+	return String;
+}
+
 ///  STRTOK + STRREST HERE
 stock GetPlayerIdFromName(playername[])
 {
@@ -226,6 +289,57 @@ UserPath(playerid) {
     return str; 
 }  
 
+VehiclePath(GlobalID) { 
+	new
+		str[40];
+	
+	format(str, sizeof(str), VEHICLE_PATH, GlobalID);
+	return str;
+}
+
+forward LoadVehicleData_vehid(GlobalID, name[], value[]);
+public  LoadVehicleData_vehid(GlobalID, name[], value[])
+{
+	INI_String("Name", VehicleInfo[GlobalID][Name], 40);
+	INI_String("Plate", VehicleInfo[GlobalID][Plate], 30);
+	INI_Int("ModelID", VehicleInfo[GlobalID][ModelID]);
+	INI_String("Owner", VehicleInfo[GlobalID][Owner], MAX_PLAYER_NAME);
+	INI_Int("Color1", VehicleInfo[GlobalID][Color1]);
+	INI_Int("Color2", VehicleInfo[GlobalID][Color2]);
+	INI_Float("ParkX", VehicleInfo[GlobalID][ParkX]);
+	INI_Float("ParkY", VehicleInfo[GlobalID][ParkY]);
+	INI_Float("ParkZ", VehicleInfo[GlobalID][ParkZ]);
+	INI_Float("ParkA", VehicleInfo[GlobalID][ParkA]);
+	INI_Int("Buyable", VehicleInfo[GlobalID][Buyable]);
+	INI_Int("Locked", VehicleInfo[GlobalID][Locked]);
+	INI_Int("Valid", VehicleInfo[GlobalID][Valid]);
+	
+	return 1;
+}
+
+forward LoadAllVehicles();
+public LoadAllVehicles()
+{
+	for( new curid = 0;  curid < MAX_VEHICLES;  ++curid ) {
+		if( fexist( VehiclePath(curid) ) ) {
+		
+			INI_ParseFile( VehiclePath(curid), "LoadVehicleData_vehid", .bExtra = true, .extra = curid);
+			
+			new cGlobalID = curid;
+			new cModelName[40];
+			format(cModelName, sizeof(cModelName), ""#COL_GREEN"%s", VehicleInfo[curid][Name]);
+			new cOwner[MAX_PLAYER_NAME];
+			format(cOwner, sizeof(cOwner), ""#COL_GREEN"%s", VehicleInfo[curid][Owner]) ;
+			
+			new car_str[500];
+			format(car_str, sizeof(car_str), "Vehicle with GlobalID: "#COL_GREEN"%d, ModelName: %s, Owner: %s.  Loaded Succesfully!", cGlobalID, cModelName, cOwner );
+			
+			SendClientMessageToAll(COLOR_WHITE, car_str);
+		}
+	}
+}
+	
+
 forward LoadPlayerData_user(playerid, name[], value[]); 
 public LoadPlayerData_user(playerid, name[], value[]) { 
 
@@ -244,7 +358,6 @@ public LoadPlayerData_user(playerid, name[], value[]) {
     return 1; 
 }
 //   LOGIN
-
 //   PayDay
 forward KillTextPayday();
 public KillTextPayday()
@@ -262,6 +375,7 @@ stock Automatic_PayDay()
 	new str[400];
 	
 	for( new player = 0;  player < MAX_PLAYERS;  ++player ) {
+		if( !IsPlayerConnected(player) )  continue;
 		
 		//   Update stats
 		PlayerInfo[player][RespectP] += 1;  //  Adaugam Respect Points
@@ -363,7 +477,8 @@ public OnGameModeInit()
 	//  World Clock
 	//  =================================================================================
 	AddPlayerClass(60,1781.2979,-1863.4768,13.5750,304.8684,0,0,0,0,0,0);
-
+	
+	///  Masini UNREGISTERED
 	AddStaticVehicle(509,1802.5951,-1866.7990,13.0626,347.6411,0,0);
 	AddStaticVehicle(509,1799.3889,-1866.5785,13.0559,354.4962,0,0);
 	AddStaticVehicle(509,1801.1124,-1866.6853,13.0343,355.5555,0,0);
@@ -375,7 +490,8 @@ public OnGameModeInit()
 	
 	AddStaticVehicle(411,1776.5721,-1864.0138,13.0854,37.8068,30,20); // 
 	AddStaticVehicle(411,1768.5643,-1863.5677,13.0868,42.5649,20,30); // 
-
+	///  Masini REGISTERED
+	LoadAllVehicles();
 	
 	return 1;
 }
