@@ -15,7 +15,8 @@
 ///   DEFINES
 //   LOGIN
 #define USER_PATH "/Users/%s.ini" 
-#define VEHICLE_PATH "/Vehicles/%d.ini"
+#define VEHICLE_PATH "/UserVehicles/%d.ini"
+#define MY_MAX_VEHICLES = 3000
 //   LOGIN
 //==================================================
 //   PayDay
@@ -126,20 +127,24 @@ enum E_PLAYER_DATA {
     bool:LoggedIn 
 }; 
 ///  Vehicle system
+new TotalVeh = 0;
 enum E_VEHICLE_DATA {
 	Name[40],  //  Numele masini in game  (Infernus, landstalker)
 	Plate[30], //  Numele plate-ului masinii (Ceva personalizat  /player/masina)
 	ModelID,   //  ID-ul masini de folosit (cel link-uit cu numele)
+	vID,    ///  Cel folosit in SA-MP system
 	Owner[MAX_PLAYER_NAME],     //  Numele celui care detine masina (cel de login)
 	Color1,  Color2,            //  Culorile
 	Float: ParkX, 
 	Float: ParkY,
 	Float: ParkZ,
 	Float: ParkA, //  Coordonatele de respawn / park
+	Fuel,     //  0-100 ||  0 - nu porneste masina
+	Engine,   //  Pornit / oprit
 	Buyable,  //  Masina e de vanzare?
 	Locked,   //  Daca alti playeri pot sa intre in masina in afara de owner
-	Valid     //  Daca masina e valida de LOAD
 }
+
 
 new VehicleInfo[MAX_VEHICLES][E_VEHICLE_DATA];
 new PlayerInfo[MAX_PLAYERS][E_PLAYER_DATA];  
@@ -184,7 +189,13 @@ new VehicleNames[][] =
  	"Phoenix", "Glendale", "Sadler", "Luggage", "Luggage", "Stairs", "Boxville",
  	"Tiller", "Utility Trailer"
 };
-stock GetVehicleName(vehicleid)
+stock GetVehicleName_Model(modelid)
+{
+	new String[20];
+	format(String,sizeof(String),"%s",VehicleNames[modelid - 400]);
+	return String;
+}
+stock GetVehicleName_Vehicle(vehicleid)
 {
 	new String[20];
 	format(String,sizeof(String),"%s",VehicleNames[GetVehicleModel(vehicleid) - 400]);
@@ -297,47 +308,27 @@ VehiclePath(GlobalID) {
 	return str;
 }
 
-forward LoadVehicleData_vehid(GlobalID, name[], value[]);
-public  LoadVehicleData_vehid(GlobalID, name[], value[])
+forward LoadVehicleData( vehid, name[], value[] );
+public  LoadVehicleData( vehid, name[], value[] )
 {
-	INI_String("Name", VehicleInfo[GlobalID][Name], 40);
-	INI_String("Plate", VehicleInfo[GlobalID][Plate], 30);
-	INI_Int("ModelID", VehicleInfo[GlobalID][ModelID]);
-	INI_String("Owner", VehicleInfo[GlobalID][Owner], MAX_PLAYER_NAME);
-	INI_Int("Color1", VehicleInfo[GlobalID][Color1]);
-	INI_Int("Color2", VehicleInfo[GlobalID][Color2]);
-	INI_Float("ParkX", VehicleInfo[GlobalID][ParkX]);
-	INI_Float("ParkY", VehicleInfo[GlobalID][ParkY]);
-	INI_Float("ParkZ", VehicleInfo[GlobalID][ParkZ]);
-	INI_Float("ParkA", VehicleInfo[GlobalID][ParkA]);
-	INI_Int("Buyable", VehicleInfo[GlobalID][Buyable]);
-	INI_Int("Locked", VehicleInfo[GlobalID][Locked]);
-	INI_Int("Valid", VehicleInfo[GlobalID][Valid]);
+	INI_String("Name", VehicleInfo[vehid][Name], 40);
+	INI_String("Plate", VehicleInfo[vehid][Plate], 30);
+	INI_String("Owner", VehicleInfo[vehid][Owner], MAX_PLAYER_NAME);
+	INI_Int("ModelID", VehicleInfo[vehid][ModelID]);
+	INI_Int("Color1", VehicleInfo[vehid][Color1]);
+	INI_Int("Color2", VehicleInfo[vehid][Color2]);
+	INI_Float("ParkX", VehicleInfo[vehid][ParkX]);
+	INI_Float("ParkY", VehicleInfo[vehid][ParkY]);
+	INI_Float("ParkZ", VehicleInfo[vehid][ParkZ]);
+	INI_Float("ParkA", VehicleInfo[vehid][ParkA]);
+	INI_Int("Engine", VehicleInfo[vehid][Engine]);
+	INI_Int("Fuel", VehicleInfo[vehid][Fuel]);
+	INI_Int("Buyable", VehicleInfo[vehid][Buyable]);
+	INI_Int("Locked", VehicleInfo[vehid][Locked]);
 	
 	return 1;
 }
-
-forward LoadAllVehicles();
-public LoadAllVehicles()
-{
-	for( new curid = 0;  curid < MAX_VEHICLES;  ++curid ) {
-		if( fexist( VehiclePath(curid) ) ) {
-		
-			INI_ParseFile( VehiclePath(curid), "LoadVehicleData_vehid", .bExtra = true, .extra = curid);
-			
-			new cGlobalID = curid;
-			new cModelName[40];
-			format(cModelName, sizeof(cModelName), ""#COL_GREEN"%s", VehicleInfo[curid][Name]);
-			new cOwner[MAX_PLAYER_NAME];
-			format(cOwner, sizeof(cOwner), ""#COL_GREEN"%s", VehicleInfo[curid][Owner]) ;
-			
-			new car_str[500];
-			format(car_str, sizeof(car_str), "Vehicle with GlobalID: "#COL_GREEN"%d, ModelName: %s, Owner: %s.  Loaded Succesfully!", cGlobalID, cModelName, cOwner );
-			
-			SendClientMessageToAll(COLOR_WHITE, car_str);
-		}
-	}
-}
+	
 	
 
 forward LoadPlayerData_user(playerid, name[], value[]); 
@@ -487,17 +478,14 @@ public OnGameModeInit()
 	AddStaticVehicle(509,1792.9340,-1866.6533,13.0560,359.3485,0,0);
 	AddStaticVehicle(509,1791.2216,-1866.6636,13.0563,0.8822,0,0);
 	AddStaticVehicle(509,1789.5703,-1866.6317,13.0860,359.1244,0,0);
-	
-	AddStaticVehicle(411,1776.5721,-1864.0138,13.0854,37.8068,30,20); // 
-	AddStaticVehicle(411,1768.5643,-1863.5677,13.0868,42.5649,20,30); // 
-	///  Masini REGISTERED
+	///  Masini  REGISTERED
 	LoadAllVehicles();
-	
 	return 1;
 }
 
 public OnGameModeExit()
 {
+	///  Save Players
 	for( new playerid = 0;  playerid < MAX_PLAYERS;  ++playerid ) 
 	{
 		///  Saving Details
@@ -515,6 +503,29 @@ public OnGameModeExit()
 		
 		INI_Close(file);
 		///  Saving Details
+	}
+	///  Save Vehicles
+	for( new vehid = 0;  vehid < MAX_VEHICLES;  ++vehid )
+	{
+		if( fexist( VehiclePath(vehid) ) )
+		{
+			new INI:file = INI_Open(VehiclePath(vehid)); 
+			INI_SetTag(file, "VehicleData"); 
+			INI_WriteString(file, "Name", VehicleInfo[vehid][Name]); 
+			INI_WriteString(file, "Plate", VehicleInfo[vehid][Plate]); 
+			INI_WriteString(file, "Owner", VehicleInfo[vehid][Owner]); 
+			INI_WriteInt(file, "ModelID", VehicleInfo[vehid][ModelID]); 
+			INI_WriteFloat(file, "ParkX", VehicleInfo[vehid][ParkX]); 
+			INI_WriteFloat(file, "ParkY", VehicleInfo[vehid][ParkY]); 
+			INI_WriteFloat(file, "ParkZ", VehicleInfo[vehid][ParkZ]); 
+			INI_WriteFloat(file, "ParkA", VehicleInfo[vehid][ParkA]); 
+			INI_WriteInt(file, "Fuel", VehicleInfo[vehid][Fuel]); 
+			INI_WriteInt(file, "Buyable", VehicleInfo[vehid][Buyable]);
+			INI_WriteInt(file, "Engine", VehicleInfo[vehid][Engine]); 
+			INI_WriteInt(file, "Locked", VehicleInfo[vehid][Locked]); 
+			
+			INI_Close(file); 
+		}
 	}
 }
 
@@ -732,7 +743,7 @@ CMD:setmoney(playerid, params[])
 			GetPlayerName(playerid, aname, sizeof(aname));
 			format(astr, sizeof(astr), "%s", aname);
 			format(str_amount, sizeof(str_amount), "%s", amount);
-			format(message, sizeof(message), "The Admin %s has set your money to $%d", astr, str_amount);
+			format(message, sizeof(message), "The Admin %s has set your money to $%s", astr, str_amount);
 			
 			SendClientMessage(toplayerid, COLOR_RED, message);
 			//  Mesaj la ADMIN
@@ -804,6 +815,200 @@ CMD:kickall(playerid)
 	return 1;
 }
 
+///  CAR SYSTEM  ||===============================================================================================||
+forward GetVehiclesOwner(vehid);
+stock  GetVehiclesOwner(vehid)
+{
+	new owner[30];
+	for( new localid = 0;  localid < TotalVeh;  ++localid )
+	{
+		if( VehicleInfo[localid][vID] == vehid ){
+			format( owner, sizeof(owner), "%s", VehicleInfo[localid][Owner] );
+			return owner;
+		}
+	}
+	format(owner, sizeof(owner), "INVALIDVEHICLEOWNER");
+	return owner;
+}
+
+forward GetGlobalVehicleID( vehicleid );
+stock   GetGlobalVehicleID( vehicleid )
+{
+	new AnswerID = -1;
+	for( new localid = 0;  localid < TotalVeh;  ++localid )
+	{
+		if( VehicleInfo[localid][vID] == vehicleid )
+		{
+			AnswerID = localid;
+		}
+	}
+	return AnswerID;
+}
+
+forward LoadAllVehicles();
+public  LoadAllVehicles()
+{
+	for( new vehid = 0;  vehid < MAX_VEHICLES;  ++vehid )
+	{
+		if( fexist( VehiclePath(vehid) ) )
+		{
+			INI_ParseFile(VehiclePath(vehid), "LoadVehicleData", .bExtra = true, .extra = vehid);
+			++TotalVeh;
+			new cModelID = VehicleInfo[vehid][ModelID];
+			new Float:cParkX = VehicleInfo[vehid][ParkX];
+			new Float:cParkY = VehicleInfo[vehid][ParkY];
+			new Float:cParkZ = VehicleInfo[vehid][ParkZ];
+			new Float:cParkA = VehicleInfo[vehid][ParkA];
+			new cColor1 = VehicleInfo[vehid][Color1];
+			new cColor2 = VehicleInfo[vehid][Color2];
+			VehicleInfo[vehid][vID] = CreateVehicle(cModelID, cParkX, cParkY, cParkZ, cParkA, cColor1, cColor2, -1);
+			
+			new msg[500];
+			new cPlate[30];  format(cPlate, sizeof(cPlate), VehicleInfo[vehid][Plate]);
+			format(msg, sizeof(msg), "Vehiculul cu ID: %d, cu plate: %s a fost spawnat la: %f %f %f", vehid, cPlate, cParkX, cParkY, cParkZ );
+			print(msg);
+		}
+	}
+}
+
+///  CAR COMMANDS
+CMD:createveh( playerid, params[] )
+{
+	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][AdminLevel] <= 4 )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: You are not authorized to use this command.");
+	}
+	new cModelID, cColor1, cColor2, cPlate[30];
+	if( sscanf( params, "ddds[30]", cModelID, cColor1, cColor2, cPlate ) ) 
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Usage: /createveh <ModelID> <Color1> <Color2> <PlateNumber>");
+	}
+	if( cModelID < 400 || cModelID > 611 )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: Invalid ModelID, it should be in range 400-611.");
+	}
+	if( cColor1 < 0 || cColor2 < 0 || cColor1 > 255 || cColor2 > 255 )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: Invalid color(s), both should be in range 0-255");
+	}
+	if( TotalVeh >= MAX_VEHICLES )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "You cannot create a new vehicle, the limit of created vehicles has been reached.");
+	}
+	
+	new Float:cParkX, Float:cParkY, Float:cParkZ, Float:cParkA;
+	GetPlayerPos(playerid, cParkX, cParkY, cParkZ);
+	GetPlayerFacingAngle(playerid, cParkA);
+	
+	SendClientMessage(playerid, COLOR_GREEN, "0 Starting building the vehicle.");
+	
+	///  Setam variabilele
+	new NEWVID = TotalVeh;
+	++TotalVeh;
+	new cOwner[MAX_PLAYER_NAME];
+	GetPlayerName(playerid, cOwner, MAX_PLAYER_NAME);	
+	
+	new cName[40];
+	format(cName, sizeof(cName), "%s", GetVehicleName_Model(cModelID) );
+	
+	SendClientMessage(playerid, COLOR_GREEN, "1 Starting building the vehicle.");
+	
+	////  Avoiing data corruption
+	VehicleInfo[NEWVID][ModelID] = cModelID;
+	VehicleInfo[NEWVID][Name] = cName;
+	VehicleInfo[NEWVID][Plate] = cPlate;
+	VehicleInfo[NEWVID][Owner] = cOwner;
+	VehicleInfo[NEWVID][Color1] = cColor1;
+	VehicleInfo[NEWVID][Color2] = cColor2;
+	VehicleInfo[NEWVID][ParkX] = cParkX;
+	VehicleInfo[NEWVID][ParkY] = cParkY;
+	VehicleInfo[NEWVID][ParkZ] = cParkZ;
+	VehicleInfo[NEWVID][ParkA] = cParkA;
+	VehicleInfo[NEWVID][Fuel]  = 100;
+	VehicleInfo[NEWVID][Engine] = 1;
+	VehicleInfo[NEWVID][Buyable] = 0;
+	VehicleInfo[NEWVID][Locked] = 0;
+	
+	SendClientMessage(playerid, COLOR_GREEN, "2 Starting building the vehicle.");
+	
+	VehicleInfo[NEWVID][vID] = CreateVehicle(cModelID, cParkX, cParkY, cParkZ, cParkA, cColor1, cColor2, -1);
+	
+	SendClientMessage(playerid, COLOR_GREEN, "Vehicle built.");
+	
+	PutPlayerInVehicle(playerid, VehicleInfo[NEWVID][vID], 0);
+	
+	SendClientMessage(playerid, COLOR_GREEN, "You are in the vehicle.");
+	///  Setting the ini_file
+	new INI:file = INI_Open(VehiclePath(NEWVID)); 
+	INI_SetTag(file, "VehicleData"); 
+	INI_WriteString(file, "Name", VehicleInfo[NEWVID][Name]); 
+	INI_WriteString(file, "Plate", VehicleInfo[NEWVID][Plate]); 
+	INI_WriteString(file, "Owner", VehicleInfo[NEWVID][Owner]); 
+	INI_WriteInt(file, "ModelID", VehicleInfo[NEWVID][ModelID]); 
+	INI_WriteFloat(file, "ParkX", VehicleInfo[NEWVID][ParkX]); 
+	INI_WriteFloat(file, "ParkY", VehicleInfo[NEWVID][ParkY]); 
+	INI_WriteFloat(file, "ParkZ", VehicleInfo[NEWVID][ParkZ]); 
+	INI_WriteFloat(file, "ParkA", VehicleInfo[NEWVID][ParkA]); 
+	INI_WriteInt(file, "Fuel", VehicleInfo[NEWVID][Fuel]); 
+	INI_WriteInt(file, "Buyable", VehicleInfo[NEWVID][Buyable]); 
+	INI_WriteInt(file, "Locked", VehicleInfo[NEWVID][Locked]); 
+	
+	INI_Close(file); 
+	
+	SendClientMessage(playerid, COLOR_GREEN, "Vehicle saved in the ini system.");
+	
+	return 1;
+}
+
+CMD:parkveh( playerid, params )
+{
+	if( !IsPlayerInAnyVehicle(playerid) )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: You are not in any vehicle.");
+	}
+	new Pname[MAX_PLAYER_NAME];
+	format(Pname, sizeof(Pname), GetPlayersName(playerid) );
+	new Oname[MAX_PLAYER_NAME];
+	format(Oname, sizeof(Oname), GetVehiclesOwner( GetPlayerVehicleID(playerid) ) );
+	if( strlen(Pname) != strlen(Oname) )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: You are not the owner of this vehicle.");
+	}
+	if( strcmp(Pname, Oname, false, MAX_PLAYER_NAME) )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: You are not the owner of this vehicle.");
+	}
+	new Float:cParkX, Float:cParkY, Float:cParkZ, Float:cParkA;
+	GetVehiclePos( GetPlayerVehicleID(playerid), cParkX, cParkY, cParkZ );
+	GetVehicleZAngle( GetPlayerVehicleID(playerid), cParkA );
+	new vehid = GetGlobalVehicleID( GetPlayerVehicleID(playerid) );
+	VehicleInfo[vehid][ParkX] = cParkX;
+	VehicleInfo[vehid][ParkY] = cParkY;
+	VehicleInfo[vehid][ParkZ] = cParkZ;
+	VehicleInfo[vehid][ParkA] = cParkA;
+	
+	SendClientMessage( playerid, COLOR_LIGHTBLUE, "You parked your vehicle." );
+	
+	return 1;	
+}
+	
+CMD:repairveh(playerid, params[])
+{
+	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][HelperLevel] <= 1 && PlayerInfo[playerid][AdminLevel] <= 0 )
+	{
+		return SendClientMessage( playerid, COLOR_YELLOW, "Error: You are not authorized to use this command." );
+	}
+	if( !IsPlayerInAnyVehicle(playerid) )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "You are not in a vehicle.");
+	}
+	RepairVehicle( GetPlayerVehicleID(playerid) );
+	SetVehicleHealth( GetPlayerVehicleID(playerid), 1000.0 );
+	SendClientMessage(playerid, COLOR_GREEN, "You repaired the vehicle you are in.");
+	
+	return 1;
+}
+	
 ///  BAN FUNCTION
 CMD:unbanuser( playerid, params[] )
 {
