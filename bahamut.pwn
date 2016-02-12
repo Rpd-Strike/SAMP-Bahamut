@@ -112,6 +112,9 @@ enum {
 //   LOGIN
 
 //   PLAYER_INFO
+#define MAX_LEVEL 50
+new LevelCostM[MAX_LEVEL + 2], LevelCostP[MAX_LEVEL + 2];
+
 enum E_PLAYER_DATA { 
     Password[129], 
     AdminLevel, 
@@ -202,7 +205,19 @@ stock GetVehicleName_Vehicle(vehicleid)
 	return String;
 }
 
-///  STRTOK + STRREST HERE
+///  STRTOK + STRREST HERE + MAX/MIN
+stock MyMinim( a, b )
+{
+	if( a < b )  return a;
+	return b;
+}
+
+stock MyMaxim( a, b )
+{
+	if( a > b )  return a;
+	return b;
+}
+
 stock GetPlayerIdFromName(playername[])
 {
   for(new i = 0; i <= MAX_PLAYERS; i++)
@@ -439,6 +454,13 @@ public OnGameModeInit()
 	LimitGlobalChatRadius(50.0);
 	EnableStuntBonusForAll(0);
 	
+	///  Level system
+	for( new lv = 0;  lv < MAX_LEVEL;  ++lv )
+	{
+		LevelCostP[lv] = 2 + lv;
+		LevelCostM[lv] = 10000 * (lv+1);
+	}
+	
 	//  ================================================================================
 	//  PayDay
 	PayDay_Text = TextDrawCreate(483.808746, 307.733459, "PayDay");
@@ -494,6 +516,7 @@ public OnGameModeExit()
 		INI_WriteInt(file, "AdminLevel", PlayerInfo[playerid][AdminLevel]);
 		INI_WriteInt(file, "HelperLevel", PlayerInfo[playerid][HelperLevel]);
 		INI_WriteInt(file, "Skin", PlayerInfo[playerid][Skin]);
+		INI_WriteInt(file, "Scores", PlayerInfo[playerid][Scores]);
 		INI_WriteInt(file, "Money", PlayerInfo[playerid][Money]);
 		INI_WriteInt(file, "BankMoney", PlayerInfo[playerid][BankMoney]);
 		INI_WriteInt(file, "Skin", PlayerInfo[playerid][Skin]);
@@ -515,6 +538,8 @@ public OnGameModeExit()
 			INI_WriteString(file, "Plate", VehicleInfo[vehid][Plate]); 
 			INI_WriteString(file, "Owner", VehicleInfo[vehid][Owner]); 
 			INI_WriteInt(file, "ModelID", VehicleInfo[vehid][ModelID]); 
+			INI_WriteInt(file, "Color1", VehicleInfo[vehid][Color1]); 
+			INI_WriteInt(file, "Color2", VehicleInfo[vehid][Color2]); 
 			INI_WriteFloat(file, "ParkX", VehicleInfo[vehid][ParkX]); 
 			INI_WriteFloat(file, "ParkY", VehicleInfo[vehid][ParkY]); 
 			INI_WriteFloat(file, "ParkZ", VehicleInfo[vehid][ParkZ]); 
@@ -653,7 +678,46 @@ public OnPlayerText(playerid, text[])
 {
 	return 1;
 }
- 
+
+CMD:buylevel(playerid, params[])
+{
+	new lv = PlayerInfo[playerid][Scores];
+	if( lv == MAX_LEVEL )
+	{
+		return SendClientMessage( playerid, COLOR_LIGHTBLUE, "You have maximum level. CONGRATULATIONS!" );
+	}
+	new cM = LevelCostM[lv], cP = LevelCostP[lv];
+	new pM = PlayerInfo[playerid][Money], pP = PlayerInfo[playerid][RespectP];
+	if( pP < cP )
+	{
+		new msg[400];
+		format(msg, sizeof(msg), ""#COL_GREY"You need "#COL_YELLOW"%d "#COL_GREY"Respect Point(s) to level up.", cM);
+		return SendClientMessage(playerid, COLOR_WHITE, msg);
+	}
+	if( pM < cM )
+	{
+		new msg[400];
+		format(msg, sizeof(msg), ""#COL_GREY"You need "#COL_YELLOW"$%d "#COL_GREY"to level up.", cM);
+		return SendClientMessage(playerid, COLOR_WHITE, msg);
+	}
+	pM -= cM;
+	pP -= cP;
+	++lv;
+	MySetPlayerMoney( playerid, pM );
+	PlayerInfo[playerid][RespectP] = pP;
+	PlayerInfo[playerid][Scores] = lv;
+	
+	new msg[400];
+	format( msg, sizeof(msg), ""#COL_LIGHTBLUE"You have spent $%d and %d Respect Point(s) to level up.", cM, cP );
+	SendClientMessage(playerid, COLOR_WHITE, msg);
+	format( msg, sizeof(msg), ""#COL_LIGHTBLUE"You are now level %d.", lv );
+	SendClientMessage(playerid, COLOR_WHITE, msg);
+	
+	return 1;
+}
+	
+	
+	
 CMD:stats(playerid, params[])
 {	
 	new playername[MAX_PLAYER_NAME];
@@ -665,6 +729,8 @@ CMD:stats(playerid, params[])
 	new str_stats[1000], str1[500];
 	new cLevel = PlayerInfo[playerid][Scores];
 	new cRespectP = PlayerInfo[playerid][RespectP];
+	new cNextRP = MyMinim( cLevel, MAX_LEVEL );
+	cNextRP = LevelCostP[ cNextRP ];
 	new cMoney = PlayerInfo[playerid][Money];
 	new cBankMoney = PlayerInfo[playerid][BankMoney];
 	new cKills = PlayerInfo[playerid][Kills];
@@ -675,7 +741,7 @@ CMD:stats(playerid, params[])
 	if( cNameBanned )  format( strNameBan, sizeof(strNameBan), ""#COL_RED"Yes" );
 	new cAdmin = PlayerInfo[playerid][AdminLevel];
 	new cHelper = PlayerInfo[playerid][HelperLevel];
-	format(str1, sizeof(str1), ""#COL_WHITE"Name: "#COL_BLUE"%s \n "#COL_WHITE"Level: "#COL_GREEN"%d \n "#COL_WHITE"Respect Points: "#COL_GREEN"%d \n "#COL_WHITE"Money: "#COL_GREEN"$%d \n "#COL_WHITE"Money in bank: "#COL_GREEN"$%d \n ", playername, cLevel, cRespectP, cMoney, cBankMoney );
+	format(str1, sizeof(str1), ""#COL_WHITE"Name: "#COL_BLUE"%s \n "#COL_WHITE"Level: "#COL_GREEN"%d \n "#COL_WHITE"Respect Points: "#COL_GREEN"%d/%d \n "#COL_WHITE"Money: "#COL_GREEN"$%d \n "#COL_WHITE"Money in bank: "#COL_GREEN"$%d \n ", playername, cLevel, cRespectP, cNextRP, cMoney, cBankMoney );
 	format( str_stats, sizeof(str_stats), "%s"#COL_WHITE"Kills: "#COL_GREEN"%d \n "#COL_WHITE"Deaths: "#COL_GREEN"%d \n "#COL_WHITE"Name banned: "#COL_YELLOW"%s \n "#COL_WHITE"Admin_Level: "#COL_YELLOW"%d \n "#COL_WHITE"Helper_Level: "#COL_YELLOW"%d", str1, cKills, cDeaths, strNameBan, cAdmin, cHelper );
 	
 	ShowPlayerDialog(playerid, DIALOG_STATS, DIALOG_STYLE_MSGBOX, title_mess, str_stats, "OK / Close", "" );
@@ -872,6 +938,31 @@ public  LoadAllVehicles()
 }
 
 ///  CAR COMMANDS
+CMD:deleteveh( playerid, params[] )
+{
+	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][AdminLevel] <= 4 )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: You are not authorized to use this command.");
+	}
+	if( !IsPlayerInAnyVehicle(playerid) )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "Error: You are not in any vehicle.");
+	}
+	
+	new tID = GetPlayerVehicleID(playerid);
+	for( new vehid = 0;  vehid < TotalVeh;  ++vehid ) {
+		if( tID == VehicleInfo[vehid][vID] )
+		{
+			--TotalVeh;
+			VehicleInfo[vehid] = VehicleInfo[TotalVeh];
+			fremove( VehiclePath(TotalVeh) );
+			return SendClientMessage( playerid, COLOR_GREEN, "Vehicle deleted succesfully." );
+		}
+	}
+	
+	return SendClientMessage(playerid, COLOR_YELLOW, "This vehicle is not in our INI system.");
+}
+
 CMD:createveh( playerid, params[] )
 {
 	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][AdminLevel] <= 4 )
@@ -993,6 +1084,23 @@ CMD:parkveh( playerid, params )
 }
 	
 CMD:repairveh(playerid, params[])
+{
+	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][HelperLevel] <= 1 && PlayerInfo[playerid][AdminLevel] <= 0 )
+	{
+		return SendClientMessage( playerid, COLOR_YELLOW, "Error: You are not authorized to use this command." );
+	}
+	if( !IsPlayerInAnyVehicle(playerid) )
+	{
+		return SendClientMessage(playerid, COLOR_YELLOW, "You are not in a vehicle.");
+	}
+	RepairVehicle( GetPlayerVehicleID(playerid) );
+	SetVehicleHealth( GetPlayerVehicleID(playerid), 1000.0 );
+	SendClientMessage(playerid, COLOR_GREEN, "You repaired the vehicle you are in.");
+	
+	return 1;
+}
+
+CMD:rv(playerid, params[])
 {
 	if( !IsPlayerAdmin(playerid) && PlayerInfo[playerid][HelperLevel] <= 1 && PlayerInfo[playerid][AdminLevel] <= 0 )
 	{
@@ -1369,7 +1477,13 @@ public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
                     SetPlayerScore(playerid, PlayerInfo[playerid][Scores]); 
                     GivePlayerMoney(playerid, PlayerInfo[playerid][Money]); 
                     SendClientMessage(playerid, -1, "Welcome back! You have successfully logged in!"); 
-                    PlayerInfo[playerid][LoggedIn] = true; 
+					
+					new wmsg[400], pname[MAX_PLAYER_NAME];
+					GetPlayerName(playerid, pname, MAX_PLAYER_NAME);
+					format( wmsg, sizeof(wmsg), ""#COL_CYAN"Player "#COL_LIGHTBLUE"%s "#COL_CYAN"has joined the server.", pname );
+					SendClientMessageToAll(COLOR_WHITE, wmsg);
+                    
+					PlayerInfo[playerid][LoggedIn] = true; 
                     TogglePlayerSpectating(playerid, false); 
                 } 
                 else { 
